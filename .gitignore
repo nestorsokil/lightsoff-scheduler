@@ -3,3 +3,4 @@
 .telethon
 __pycache__
 venv
+*.key

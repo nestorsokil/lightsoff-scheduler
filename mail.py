@@ -8,6 +8,8 @@ SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
 SENDGRID_FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL")
 
 
+# TODO not used, remove
+
 def send_email_with_invite(ics, to_emails):
     sg = sendgrid.SendGridAPIClient(api_key=SENDGRID_API_KEY)
     encoded_file = base64.b64encode(ics.encode('utf-8')).decode('ascii')
