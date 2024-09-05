@@ -1,0 +1,5 @@
+.env
+.vscode
+.telethon
+__pycache__
+venv

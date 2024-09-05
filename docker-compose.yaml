@@ -1,0 +1,10 @@
+services:
+  lightsoff-scheduler:
+    image: lightsoff-scheduler
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - .telethon:/app/.telethon
