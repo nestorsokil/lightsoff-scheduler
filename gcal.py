@@ -1,5 +1,5 @@
 
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import os
 import logging
 from googleapiclient.discovery import build
@@ -12,17 +12,19 @@ GOOGLE_API_KEY_NAME = os.environ.get("GOOGLE_API_KEY_NAME")
 credentials = service_account.Credentials.from_service_account_file(GOOGLE_API_KEY_NAME, scopes=SCOPES)
 service = build('calendar', 'v3', credentials=credentials)
 
+def to_str(_datetime):
+    return _datetime.strftime("%Y-%m-%dT%H:%M:%S")
 
 def insert_outage(calendar_id, begin, end, summary="Power Outage", description="Scheduled power outage"):
     event = {
         "summary": summary,
         "description": description,
         "start": {
-            "dateTime": begin,
+            "dateTime": to_str(begin),
             "timeZone": "Europe/Kiev"
         },
         "end": {
-            "dateTime": end,
+            "dateTime": to_str(end),
             "timeZone": "Europe/Kiev"
         },
         "reminders": {
@@ -41,7 +43,7 @@ def insert_outage(calendar_id, begin, end, summary="Power Outage", description="
 def clear_events_for_day(calendar_id, date):
     """Clear all events for a specific day."""
     logging.info(f'Clearing day {date} for calendar {calendar_id}')
-    start_time = datetime.combine(date, time.min).isoformat() + 'Z'
+    start_time = (datetime.combine(date, time.min) - timedelta(seconds=1)).isoformat() + 'Z'
     end_time = datetime.combine(date, time.max).isoformat() + 'Z'
 
     events_result = service.events().list(
@@ -49,6 +51,7 @@ def clear_events_for_day(calendar_id, date):
 
     events = events_result.get('items', [])
 
+    print(f"Found {len(events)} events for this day.")
     if not events:
         logging.info('No events found for this day.')
     else:

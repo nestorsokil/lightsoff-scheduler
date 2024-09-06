@@ -1,11 +1,16 @@
 # LightsOff Scheduler
 Imports https://poweron.loe.lviv.ua/ into Google Calendar USING AI(omg-omg🔥)
 
-### RUN
+### Run
 
 ```
 cp .env.template .env # update .env with values
 docker-compose --build run lightsoff-scheduler
+```
+OR
+```
+python -m pip install -r requirements.txt
+export $(cat .env | xargs) && python telethon_app.py
 ```
 
 ### Execution sample
