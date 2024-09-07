@@ -15,7 +15,7 @@ service = build('calendar', 'v3', credentials=credentials)
 def to_str(_datetime):
     return _datetime.strftime("%Y-%m-%dT%H:%M:%S")
 
-def insert_outage(calendar_id, begin, end, summary="Power Outage", description="Scheduled power outage"):
+def insert_event(calendar_id, begin, end, summary="Power Outage", description="Scheduled power outage"):
     event = {
         "summary": summary,
         "description": description,
@@ -43,19 +43,19 @@ def insert_outage(calendar_id, begin, end, summary="Power Outage", description="
 def clear_events_for_day(calendar_id, date):
     """Clear all events for a specific day."""
     logging.info(f'Clearing day {date} for calendar {calendar_id}')
-    start_time = (datetime.combine(date, time.min) - timedelta(seconds=1)).isoformat() + 'Z'
-    end_time = datetime.combine(date, time.max).isoformat() + 'Z'
+    start_time = (datetime.combine(date, time.min) - timedelta(seconds=1)).isoformat() + '+03:00'
+    end_time = datetime.combine(date, time.max).isoformat() + '+03:00'
 
     events_result = service.events().list(
         calendarId=calendar_id, timeMin=start_time, timeMax=end_time, singleEvents=True, orderBy='startTime').execute()
 
     events = events_result.get('items', [])
 
-    print(f"Found {len(events)} events for this day.")
+    logging.info(f"Found {len(events)} events for this day.")
     if not events:
         logging.info('No events found for this day.')
     else:
         for event in events:
             event_id = event['id']
-            print(f"Deleting event: {event['summary']} (ID: {event_id})")
+            logging.info(f"Deleting event: {event['summary']} (ID: {event_id})")
             service.events().delete(calendarId=calendar_id, eventId=event_id).execute()

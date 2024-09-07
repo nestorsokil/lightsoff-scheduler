@@ -1,73 +1,65 @@
-import anthropic
 import logging
-import json
+import re
 from datetime import datetime, timedelta
-import csv
-import io
+from img2table.document import Image
+from img2table.ocr import TesseractOCR
+from PIL import Image as PILImage
 
 
-def ocr_image_to_calendar_api_multi(image_b64):
-    text = _ocr_image(
-        image_b64, 'I uploaded an image of a power outage schedule table which shows hours of the day across the top and group numbers in 1st column. The image may be split into 2 12-hour sub-tables. Orange cells indicate outage periods. The date is highlighted at the top. Combine consecutive outage periods into single events. Only respond with a valid minified json of format {"group": [[full datetime start, full datetime end],[full datetime start, full datetime end]]}, then add a separator "->" and date in format "%Y-%m-%d".')
-    logging.debug("Received text from OCR: %s", text)
-    parts = text.split("->")
-    return json.loads(parts[0].strip()), datetime.strptime(parts[1].strip(), "%Y-%m-%d")
+def image_to_time_frames(image_path):
+    image = Image(image_path, detect_rotation=False)
+    pixels = PILImage.open(image_path).load()
 
+    logging.info("Extracting tables from image...")
+    extracted_tables = image.extract_tables(
+        ocr=TesseractOCR(n_threads=1, lang="ukr", psm=11),
+        implicit_rows=False,
+        implicit_columns=False,
+        borderless_tables=False,
+        min_confidence=1)
+    logging.info(f"Extracted {len(extracted_tables)} tables from image.")
+    if len(extracted_tables) == 0:
+        logging.warn("No tables found in the image.")
+        return None, None
 
-def ocr_image_to_timeframes(image_b64):
-    text = _ocr_image(
-        image_b64, 'Don\'t interpret the image text. Turn the large green-orange table into CSV, use 0 for orange, 1 for green, add headers, no prompt, add separator "FOR_DATE:" and date %Y-%m-%d from the top of the image.')
-    logging.info("Received text from OCR: %s", text)
-    parts = text.split("FOR_DATE:")
-    day = datetime.strptime(parts[1].strip(), "%Y-%m-%d")
-    csv_string = parts[0].strip()
-    csv_reader = csv.reader(io.StringIO(csv_string))
+    table = extracted_tables[0]
+    day = extract_day(table)
 
+    group_by_table_index = {1: "1.1", 2: "1.2", 3: "2.1", 4: "2.2", 5: "3.1", 6: "3.2",
+              8: "1.1", 9: "1.2", 10: "2.1", 11: "2.2", 12: "3.1", 13: "3.2"}
     result = {}
-    next(csv_reader, None)  # skip the headers
-    for row in csv_reader:
-        group = row[0]
-        result[group] = []
-        for i, cell in enumerate(row[1:]):
-            if cell == "0":
-                start = day + timedelta(hours=i)
-                end = day + timedelta(hours=i + 1)
-                if i != 0 and len(result[group]) > 0 and result[group][-1] is not None and result[group][-1][1] == start:
-                    result[group][-1][1] = end
+    # pattern = re.compile("є| є|є |енергія")
+    for group_key, cells in table.content.items():
+        if group_key not in group_by_table_index:
+            continue
+        group = group_by_table_index[group_key]
+        if group not in result:
+            result[group] = []
+        for index, cell in enumerate(cells[1:]):  # Skip group name
+            if is_orange(pixels, cell):
+                delta_start, delta_end = period_deltas(group_key, index)
+                start, end = day + delta_start, day + delta_end
+                if is_overlapping(result[group], start):
+                    last_period = result[group][-1]
+                    last_period[1] = end
                 else:
-                    result[group].append([start, end])
+                    new_period = [start, end]
+                    result[group].append(new_period)
     return result, day
 
+def is_overlapping(group_time_frames, start):
+    return len(group_time_frames) > 0 and group_time_frames is not None and group_time_frames[-1][1] == start
 
-def mock_ocr_to_calendar_api_multi():
-    text = '{"1.1":[["2024-09-05T00:00:00","2024-09-05T01:00:00"],["2024-09-05T11:00:00","2024-09-05T14:00:00"]],"1.2":[["2024-09-05T05:00:00","2024-09-05T07:00:00"],["2024-09-05T19:00:00","2024-09-05T21:00:00"]],"2.1":[["2024-09-05T07:00:00","2024-09-05T09:00:00"],["2024-09-05T21:00:00","2024-09-05T23:00:00"]],"2.2":[["2024-09-05T10:00:00","2024-09-05T12:00:00"],["2024-09-05T23:00:00","2024-09-06T01:00:00"]],"3.1":[["2024-09-05T01:00:00","2024-09-05T03:00:00"],["2024-09-05T14:00:00","2024-09-05T16:00:00"]],"3.2":[["2024-09-05T03:00:00","2024-09-05T05:00:00"],["2024-09-05T17:00:00","2024-09-05T19:00:00"]]}->2024-09-05'
-    parts = text.split("->")
-    return json.loads(parts[0].strip()), datetime.strptime(parts[1].strip(), "%Y-%m-%d")
+def period_deltas(group_key, index):
+    hours = index if group_key < 7 else index + 12
+    return timedelta(hours=hours), timedelta(hours=hours + 1)
 
+def extract_day(table):
+    title = table.title
+    table_date = re.findall(r'\d{1,2}\.\d{1,2}\.\d{4}', title)[0]
+    return datetime.strptime(table_date, "%d.%m.%Y")
 
-def _ocr_image(image_b64, prompt):
-    client = anthropic.Anthropic()  # defaults to os.environ.get("ANTHROPIC_API_KEY)
-    logging.info("Sending image to Anthropics API for OCR...")
-    message = client.messages.create(
-        max_tokens=1000,
-        temperature=0,
-        system=prompt,
-        model="claude-3-5-sonnet-20240620",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": str(image_b64)
-                        }
-                    }
-                ]
-            }
-        ]
-    )
-    logging.info("Received response from Anthropics API.")
-    return message.content[0].text
+def is_orange(pixels, cell):
+    colorpick_x, colorpick_y = cell.bbox.x1 + 5, cell.bbox.y1 + 5
+    color = pixels[colorpick_x, colorpick_y]
+    return color[0] > 200 and color[1] > 100 and color[2] < 100
