@@ -28,7 +28,7 @@ async def handler(event):
         photo_path = await event.message.download_media(file='.telethon/downloads/')
         try:
             events, day = ocr.image_to_time_frames(photo_path)
-            logging.info(f"OCR results: {events}, {day}")
+            logging.debug(f"OCR results: {events}, {day}")
 
             if events is None:
                 logging.warn("No events found in the image. Skipping...")

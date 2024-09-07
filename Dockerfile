@@ -1,8 +1,5 @@
 FROM python:3.9.6-slim-buster
 
-ADD requirements.txt /app/requirements.txt
-WORKDIR /app
-
 RUN apt-get update
 RUN apt-get install -y --reinstall \
     ffmpeg \
@@ -18,10 +15,11 @@ RUN apt-get install -y --reinstall \
     tesseract-ocr-script-latn \
     tesseract-ocr-ukr
 
-RUN pip install -r requirements.txt
 
+ADD requirements.txt /app/requirements.txt
+RUN pip install -r /app/requirements.txt
 ADD . /app/
 
-RUN apt-get install tesseract-ocr-ukr
+WORKDIR /app
 
 ENTRYPOINT [ "python", "telethon_app.py" ]
