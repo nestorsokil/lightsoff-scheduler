@@ -1,5 +1,7 @@
 # LightsOff Scheduler
-Imports https://poweron.loe.lviv.ua/ into Google Calendar USING AI(omg-omg🔥)
+Imports https://poweron.loe.lviv.ua/ into Google Calendar ~~USING AI(omg-omg🔥)~~
+(Turns out AI sucks at parsing precise image data, it's 99% correct but in 1% it just uses IMAGINATION, 
+so I had to use good old OCR)
 
 ### Run
 

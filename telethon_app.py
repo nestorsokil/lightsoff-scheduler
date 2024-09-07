@@ -1,13 +1,12 @@
 import asyncio
 import ocr
-import base64
 import os
 import logging
 import gcal
 import json
 
 from telethon import TelegramClient, events
-from telethon.sessions import StringSession
+from telethon.sessions import StringSession, Session
 
 api_id = os.environ.get("TELEGRAM_API_ID")
 api_hash = os.environ.get("TELEGRAM_API_HASH")
@@ -21,53 +20,41 @@ session = StringSession(session_string) if session_string else StringSession()
 client = TelegramClient(session, api_id, api_hash)
 
 
-def clean_downloads():
-    import os
-    import shutil
-    folder = '.telethon/downloads'
-    for filename in os.listdir(folder):
-        file_path = os.path.join(folder, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            logging.error('Failed to delete %s. Reason: %s' % (file_path, e))
-
-def to_str(_datetime):
-    return _datetime.strftime("%Y-%m-%dT%H:%M:%S")
-
 @client.on(events.NewMessage(chats=channel_username))
 async def handler(event):
-    message = event.message
     logging.info(f"New message from {channel_username}:")
-    logging.info(f"Message ID: {message.id}")
-    if message.photo and not message.text:
-        photo_path = await message.download_media(file='.telethon/downloads/')
-        with open(photo_path, "rb") as file:
-            file_data = file.read()
-            image_base64 = base64.b64encode(file_data).decode("ascii")
-            # events, day = ocr.mock_ocr_to_calendar_api_multi()
+    logging.info(f"Message ID: {event.message.id}")
+    if event.message.photo and not event.message.text:
+        photo_path = await event.message.download_media(file='.telethon/downloads/')
+        try:
+            events, day = ocr.image_to_time_frames(photo_path)
+            logging.info(f"OCR results: {events}, {day}")
 
-            #events, day = ocr.ocr_image_to_calendar_api_multi(image_base64)
-            events, day = ocr.ocr_image_to_timeframes(image_base64)
-            logging.debug(f"OCR results: {events}, {day}")
+            if events is None:
+                logging.warn("No events found in the image. Skipping...")
+                return
 
-            for group, timeframes in events.items():
+            for group, time_frames in events.items():
                 calendar_id = calendars[group]
                 if calendar_id is None:
-                    logging.warn(f"Calendar ID not found for group {group}. Skipping...")
+                    logging.warn(
+                        f"Calendar ID not found for group {group}. Skipping...")
                     continue
                 gcal.clear_events_for_day(calendar_id, day)
-                for timeframe in timeframes:
+                for timeframe in time_frames:
                     begin, end = timeframe[0], timeframe[1]
-                    gcal.insert_outage(calendar_id=calendar_id, begin=begin, end=end,
-                                       summary=f"Power Outage ({group})", description=f"Scheduled power outage for {group}")
+                    gcal.insert_event(
+                        calendar_id=calendar_id,
+                        begin=begin,
+                        end=end,
+                        summary=f"Power Outage ({group})",
+                        description=f"Scheduled power outage for {group}")
             logging.info("Updated schedules in Google Calendar")
-            logging.debug("Cleaning downloads folder...")
-            clean_downloads()
-            logging.debug("Done cleaning downloads folder...")
+        finally:
+            logging.debug("Deleting downloaded photo...")
+            if os.path.exists(photo_path):
+                os.remove(photo_path)
+
 
 def main():
     logging.info("Starting client...")
