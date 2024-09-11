@@ -2,7 +2,7 @@ import asyncio
 import ocr
 import os
 import logging
-import gcal
+import google_calendar as gcal
 import json
 
 from telethon import TelegramClient, events
@@ -41,13 +41,23 @@ async def handler(event):
                         f"Calendar ID not found for group {group}. Skipping...")
                     continue
                 gcal.clear_events_for_day(calendar_id, day)
+                if len(time_frames) == 0:
+                    logging.info(f"No power outages scheduled for {group} on {day}")
+                    gcal.insert_event(
+                        calendar_id=calendar_id, 
+                        begin=day, 
+                        end=day, 
+                        summary=f"✅ No Power Outages scheduled ✅", 
+                        description=f"No power outages scheduled today for group {group}", 
+                        all_day=True)
+                    continue
                 for timeframe in time_frames:
                     begin, end = timeframe[0], timeframe[1]
                     gcal.insert_event(
                         calendar_id=calendar_id,
                         begin=begin,
                         end=end,
-                        summary=f"Power Outage ({group})",
+                        summary=f"❌ Power Outage ({group}) ❌",
                         description=f"Scheduled power outage for {group}")
             logging.info("Updated schedules in Google Calendar")
         finally:

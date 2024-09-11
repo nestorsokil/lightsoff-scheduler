@@ -12,32 +12,21 @@ GOOGLE_API_KEY_NAME = os.environ.get("GOOGLE_API_KEY_NAME")
 credentials = service_account.Credentials.from_service_account_file(GOOGLE_API_KEY_NAME, scopes=SCOPES)
 service = build('calendar', 'v3', credentials=credentials)
 
-def to_str(_datetime):
-    return _datetime.strftime("%Y-%m-%dT%H:%M:%S")
+def timestamp_obj(_datetime, all_day):
+    if all_day:
+        return {"date": _datetime.strftime("%Y-%m-%d"), "timeZone": "Europe/Kiev"}
+    return {"dateTime": _datetime.strftime("%Y-%m-%dT%H:%M:%S"), "timeZone": "Europe/Kiev"}
+    
 
-def insert_event(calendar_id, begin, end, summary="Power Outage", description="Scheduled power outage"):
+def insert_event(calendar_id, begin, end, summary, description, all_day=False):
     event = {
         "summary": summary,
         "description": description,
-        "start": {
-            "dateTime": to_str(begin),
-            "timeZone": "Europe/Kiev"
-        },
-        "end": {
-            "dateTime": to_str(end),
-            "timeZone": "Europe/Kiev"
-        },
-        "reminders": {
-            "useDefault": False,
-            "overrides": [
-                {
-                    "method": "popup",
-                    "minutes": 10
-                }
-            ]
-        }
+        "transparency": "transparent", 
+        "start": timestamp_obj(begin, all_day),
+        "end": timestamp_obj(end, all_day)
     }
-    logging.info(f"Creating event: {event['summary']} (Start: {event['start']['dateTime']}, End: {event['end']['dateTime']})")
+    logging.info(f"Creating event: {event})")
     service.events().insert(calendarId=calendar_id, body=event).execute()
 
 def clear_events_for_day(calendar_id, date):

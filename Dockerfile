@@ -22,4 +22,4 @@ ADD . /app/
 
 WORKDIR /app
 
-ENTRYPOINT [ "python", "telethon_app.py" ]
+ENTRYPOINT [ "python", "lightsoff/ocr.py" ]
