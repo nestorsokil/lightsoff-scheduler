@@ -22,4 +22,4 @@ ADD . /app/
 
 WORKDIR /app
 
-ENTRYPOINT [ "python", "lightsoff/ocr.py" ]
+ENTRYPOINT [ "python", "lightsoff/application.py" ]
