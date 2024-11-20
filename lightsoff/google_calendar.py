@@ -1,7 +1,7 @@
 
-from datetime import datetime, time, timedelta
 import os
 import logging
+from datetime import datetime, time, timedelta
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 
@@ -36,15 +36,19 @@ def clear_events_for_day(calendar_id, date):
     end_time = datetime.combine(date, time.max).isoformat() + '+03:00'
 
     events_result = service.events().list(
-        calendarId=calendar_id, timeMin=start_time, timeMax=end_time, singleEvents=True, orderBy='startTime').execute()
+        calendarId=calendar_id, 
+        timeMin=start_time, 
+        timeMax=end_time, 
+        singleEvents=True, 
+        orderBy='startTime').execute()
 
     events = events_result.get('items', [])
 
     logging.info(f"Found {len(events)} events for this day.")
     if not events:
         logging.info('No events found for this day.')
-    else:
-        for event in events:
-            event_id = event['id']
-            logging.info(f"Deleting event: {event['summary']} (ID: {event_id})")
-            service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+        return
+    for event in events:
+        event_id = event['id']
+        logging.info(f"Deleting event: {event['summary']} (ID: {event_id})")
+        service.events().delete(calendarId=calendar_id, eventId=event_id).execute()

@@ -12,6 +12,13 @@ group_by_table_index = {
     8: "1.1", 9: "1.2", 10: "2.1", 11: "2.2", 12: "3.1", 13: "3.2"
 }
 
+pattern = r'(\d{1,2}) (січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня)\b'
+
+month_map = {
+    "січня": 1, "лютого": 2, "березня": 3, "квітня": 4, "травня": 5, "червня": 6,
+    "липня": 7, "серпня": 8, "вересня": 9, "жовтня": 10, "листопада": 11, "грудня": 12
+}
+
 
 def image_to_time_frames(image_path):
     try:
@@ -32,18 +39,10 @@ def image_to_time_frames(image_path):
             return parse_non_table(text)
 
         table = extracted_tables[-1]  # TODO hack but usually works
-        try:
-            day = extract_day(text)
-        except Exception as e:
-            logging.warning(
-                f"Error extracting date from text: {traceback.format_exc(e)}")
-            try:
-                day = extract_day(table.title)
-            except Exception as e:
-                logging.warning(
-                    f"Error extracting date from text: {traceback.format_exc(e)}")
-                logging.warning("Skipping processing, could not detect date.")
-                return None, None
+        day = find_day(text, table.title)
+        if day is None:
+            logging.error("Failed to extract date from image")
+            return None, None
 
         pixels = PILImage.open(image_path).load()
         result = {}
@@ -55,27 +54,23 @@ def image_to_time_frames(image_path):
                 result[group] = []
             time_frames = result[group]
             for index, cell in enumerate(cells[1:]):  # Skip group name
-                if is_orange(pixels, cell):
-                    delta_start, delta_end = period_deltas(group_key, index)
-                    start, end = day + delta_start, day + delta_end
-                    if is_overlapping(time_frames, start):
-                        last_period = time_frames[-1]
-                        last_period[1] = end
-                    else:
-                        new_period = [start, end]
-                        time_frames.append(new_period)
+                if not is_orange(pixels, cell):
+                    continue
+                delta_start, delta_end = period_deltas(group_key, index)
+                start, end = day + delta_start, day + delta_end
+                if is_overlapping(time_frames, start):
+                    last_period = time_frames[-1]
+                    last_period[1] = end
+                    continue
+                new_period = [start, end]
+                time_frames.append(new_period)
         return result, day
     except Exception as e:
         logging.error(f"Error processing image: {traceback.format_exc()}")
         return None, None
 
 
-pattern = r'(\d{1,2}) (січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня)\b'
-
-month_map = {
-    "січня": 1, "лютого": 2, "березня": 3, "квітня": 4, "травня": 5, "червня": 6,
-    "липня": 7, "серпня": 8, "вересня": 9, "жовтня": 10, "листопада": 11, "грудня": 12
-}
+NO_OUTAGES = {"1.1": [], "1.2": [], "2.1": [], "2.2": [], "3.1": [], "3.2": []}
 
 
 def parse_non_table(text):
@@ -86,7 +81,7 @@ def parse_non_table(text):
     month = month_map[date_match[1]]
     year = datetime.now().year
     date_obj = datetime(year, month, day)
-    return {"1.1": [], "1.2": [], "2.1": [], "2.2": [], "3.1": [], "3.2": []}, date_obj
+    return NO_OUTAGES, date_obj
 
 
 def is_overlapping(group_time_frames, start):
@@ -96,6 +91,15 @@ def is_overlapping(group_time_frames, start):
 def period_deltas(group_key, index):
     hours = index if group_key < 7 else index + 12
     return timedelta(hours=hours), timedelta(hours=hours + 1)
+
+
+def find_day(*strings):
+    for string in strings:
+        try:
+            return extract_day(string)
+        except:
+            continue
+    return None
 
 
 def extract_day(text):
