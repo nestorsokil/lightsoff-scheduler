@@ -31,13 +31,13 @@ async def handler(event):
             logging.debug(f"OCR results: {events}, {day}")
 
             if events is None:
-                logging.warn("No events found in the image. Skipping...")
+                logging.warning("No events found in the image. Skipping...")
                 return
 
             for group, time_frames in events.items():
                 calendar_id = calendars[group]
                 if calendar_id is None:
-                    logging.warn(
+                    logging.warning(
                         f"Calendar ID not found for group {group}. Skipping...")
                     continue
                 gcal.clear_events_for_day(calendar_id, day)

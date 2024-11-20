@@ -1,10 +1,16 @@
 import logging
+import traceback
 import re
 import pytesseract
 from datetime import datetime, timedelta
 from img2table.document import Image
 from img2table.ocr import TesseractOCR
 from PIL import Image as PILImage
+
+group_by_table_index = {
+    1: "1.1", 2: "1.2", 3: "2.1", 4: "2.2", 5: "3.1", 6: "3.2",
+    8: "1.1", 9: "1.2", 10: "2.1", 11: "2.2", 12: "3.1", 13: "3.2"
+}
 
 
 def image_to_time_frames(image_path):
@@ -19,19 +25,27 @@ def image_to_time_frames(image_path):
             borderless_tables=False,
             min_confidence=1)
         logging.info(f"Extracted {len(extracted_tables)} tables from image.")
-
+        text = pytesseract.image_to_string(
+            PILImage.open(image_path), lang="ukr")
         if len(extracted_tables) == 0:
             logging.info("No tables found in the image.")
-            text = pytesseract.image_to_string(PILImage.open(image_path), lang="ukr")
             return parse_non_table(text)
 
+        table = extracted_tables[-1]  # TODO hack but usually works
+        try:
+            day = extract_day(text)
+        except Exception as e:
+            logging.warning(
+                f"Error extracting date from text: {traceback.format_exc(e)}")
+            try:
+                day = extract_day(table.title)
+            except Exception as e:
+                logging.warning(
+                    f"Error extracting date from text: {traceback.format_exc(e)}")
+                logging.warning("Skipping processing, could not detect date.")
+                return None, None
+
         pixels = PILImage.open(image_path).load()
-        table = extracted_tables[0]
-        day = extract_day(table)
-        group_by_table_index = {
-            1: "1.1", 2: "1.2", 3: "2.1", 4: "2.2", 5: "3.1", 6: "3.2",
-            8: "1.1", 9: "1.2", 10: "2.1", 11: "2.2", 12: "3.1", 13: "3.2"
-        }
         result = {}
         for group_key, cells in table.content.items():
             if group_key not in group_by_table_index:
@@ -52,7 +66,7 @@ def image_to_time_frames(image_path):
                         time_frames.append(new_period)
         return result, day
     except Exception as e:
-        logging.error(f"Error processing image: {e}")
+        logging.error(f"Error processing image: {traceback.format_exc()}")
         return None, None
 
 
@@ -84,8 +98,8 @@ def period_deltas(group_key, index):
     return timedelta(hours=hours), timedelta(hours=hours + 1)
 
 
-def extract_day(table):
-    table_date = re.findall(r'\d{1,2}\.\d{1,2}\.\d{4}', table.title)[0]
+def extract_day(text):
+    table_date = re.findall(r'\d{1,2}\.\d{1,2}\.\d{4}', text)[0]
     return datetime.strptime(table_date, "%d.%m.%Y")
 
 
