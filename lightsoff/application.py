@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import ai
 import ocr
 import os
@@ -37,6 +38,7 @@ async def handler(event):
             logging.debug("No updates detected by AI")
             return
         for day, has_outage in has_outages.items():
+            logging.info(f"Power outages scheduled for {day}: {has_outage}")
             if not has_outage:
                 logging.info(f"No power outages scheduled for {day}")
                 for group in calendars.keys():
@@ -65,8 +67,8 @@ def update_calendar(day, group, time_frames):
     if calendar_id is None:
         logging.warning(f"Calendar ID not found for group {group}. Skipping...")
         return
-    gcal.clear_events_for_day(calendar_id, day)
-    if len(time_frames) == 0:
+    whole_day_cleared = gcal.clear_events_for_day(calendar_id, day.date())
+    if whole_day_cleared and len(time_frames) == 0:
         logging.info(f"No power outages scheduled for {group} on {day}")
         gcal.insert_event(
             calendar_id=calendar_id, 
@@ -76,8 +78,12 @@ def update_calendar(day, group, time_frames):
             description=f"No power outages scheduled today for group {group}", 
             all_day=True)
         return
+    now = datetime.now()
     for timeframe in time_frames:
         begin, end = timeframe[0], timeframe[1]
+        if begin < now:
+            logging.debug(f"Skipping outdated event: {begin} - {end}")
+            continue
         gcal.insert_event(
             calendar_id=calendar_id,
             begin=begin,

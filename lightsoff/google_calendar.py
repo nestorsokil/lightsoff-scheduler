@@ -31,9 +31,21 @@ def insert_event(calendar_id, begin, end, summary, description, all_day=False):
 
 def clear_events_for_day(calendar_id, date):
     """Clear all events for a specific day."""
+    whole_day_cleared = True
+
     logging.info(f'Clearing day {date} for calendar {calendar_id}')
+
     start_time = (datetime.combine(date, time.min) - timedelta(seconds=1)).isoformat() + '+03:00'
     end_time = datetime.combine(date, time.max).isoformat() + '+03:00'
+
+    today = datetime.now().date()
+    if today > date:
+        return False
+
+    if date == today:
+        # only clear future events
+        start_time = datetime.now().isoformat() + '+03:00'
+        whole_day_cleared = False
 
     events_result = service.events().list(
         calendarId=calendar_id, 
@@ -44,11 +56,13 @@ def clear_events_for_day(calendar_id, date):
 
     events = events_result.get('items', [])
 
-    logging.info(f"Found {len(events)} events for this day.")
+    logging.info(f"Found {len(events)} remaining events for this day.")
     if not events:
-        logging.info('No events found for this day.')
-        return
+        logging.info('No remaining events found for this day.')
+        return False
     for event in events:
         event_id = event['id']
         logging.info(f"Deleting event: {event['summary']} (ID: {event_id})")
         service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+    
+    return whole_day_cleared

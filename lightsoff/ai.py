@@ -2,6 +2,7 @@ import os
 import anthropic
 import logging
 import json
+from datetime import date
 
 prompt = """
 Read message potentially talking about power outage. 
@@ -24,4 +25,8 @@ def detect(text):
     result = message.content[0].text
     if result is None or result == "":
         return {}
-    return json.loads(result)
+    parsed_data = {}
+    data = json.loads(result)
+    for key in data.keys():
+        parsed_data[date.fromisoformat(key)] = data[key]
+    return parsed_data
